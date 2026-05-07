@@ -1,0 +1,197 @@
+# src/py_tool_agent/agent.py
+""" 
+very basic agent workflow :
+
+User message
+   ↓
+Add to conversation memory
+   ↓
+Ask LLM: answer directly or call tool?
+   ↓
+If tool call:
+   - validate tool name
+   - validate arguments
+   - execute Python function
+   - inject result back into conversation
+   - ask LLM for final answer
+   ↓
+Return final answer 
+
+KEY POINT : the LLM MUST NEVER execute code freely it could only ask calling tools explicitly registered
+"""
+
+
+from __future__ import annotations
+
+import json
+from typing import Any
+
+from py_tool_agent.llm import LLMClient
+from py_tool_agent.tools import TOOLS, TOOL_SCHEMAS
+
+
+SYSTEM_PROMPT = """
+Identity:
+- Your name is Jonathan le Goéland.
+- Do not mention the underlying model name unless the user explicitly asks.
+- You help others by answering like Yoda usually talks characterized by a unique syntax known as Object-Subject-Verb (OSV) or anastrophe, where he places the most crucial part of the sentence—the object—at the beginning for emphasis. This deliberate inversion makes his speech sound wise, archaic, and puzzling, forcing listeners to focus more intensely on his words 
+- You also have access to some tools, but USING those tools IS OPTIONAL.
+
+Decision rules:
+- If the user greets you, answers casually, asks what you can do, or asks a general question, DO NOT call a tool.
+- Call a tool only when the user explicitly asks for information or an action that requires that tool.
+- Never call a tool just to demonstrate capabilities.
+- Never call a tool that is not listed in the available tools.
+- If the user asks what you can do, explain your available tools in natural language without calling them.
+- After receiving a tool result, produce a final answer in natural language.
+- Never invent tool results.
+- Keep answers concise and practical.
+
+Available capabilities:
+- get_current_time: get the current local date and time.
+- add_numbers: add two numbers.
+- list_current_directory: list files in the current working directory.
+"""
+
+
+class ToolAgent:
+    def __init__(
+        self,
+        llm: LLMClient,
+        max_steps: int = 5,
+    ) -> None:
+        self.llm = llm
+        self.max_steps = max_steps
+        self.memory: list[dict[str, Any]] = [
+            {"role": "system", "content": SYSTEM_PROMPT.strip()}
+        ]
+
+    
+    def run(self, user_input: str) -> str:
+        self.memory.append({"role": "user", "content": user_input})
+
+        for _ in range(self.max_steps):
+            tools_enabled = self._should_expose_tools(user_input)
+            tools = TOOL_SCHEMAS if tools_enabled else None
+
+            print("DEBUG tools_enabled:", tools_enabled)
+
+            response = self.llm.chat(
+                messages=self.memory,
+                tools=tools,
+            )
+
+            message = response.choices[0].message
+            tool_calls = getattr(message, "tool_calls", None)
+
+            print("DEBUG message:", message)
+            print("DEBUG tool_calls:", tool_calls)
+
+            # Important:
+            # If tools were not exposed, never execute tool calls,
+            # even if the model produced some.
+            if not tools_enabled:
+                if tool_calls:
+                    print("DEBUG ignored_tool_calls_because_tools_disabled:", tool_calls)
+
+                    # Do NOT append the broken tool_call message to memory.
+                    # Ask again for a plain natural language answer.
+                    correction_messages = [
+                        *self.memory,
+                        {
+                            "role": "system",
+                            "content": (
+                                "Direct answer mode is active. "
+                                "Do not call tools. "
+                                "Answer the user's last message in natural language only."
+                            ),
+                        },
+                    ]
+
+                    retry_response = self.llm.chat(
+                        messages=correction_messages,
+                        tools=None,
+                    )
+
+                    retry_message = retry_response.choices[0].message
+                    self.memory.append(retry_message.model_dump())
+
+                    return retry_message.content or ""
+
+                self.memory.append(message.model_dump())
+                return message.content or ""
+
+            # From here, tools are enabled.
+            self.memory.append(message.model_dump())
+
+            if not tool_calls:
+                return message.content or ""
+
+            for tool_call in tool_calls:
+                tool_result = self._execute_tool_call(tool_call)
+                self.memory.append(tool_result)
+
+            final_response = self.llm.chat(
+                messages=self.memory,
+                tools=None,
+            )
+
+            final_message = final_response.choices[0].message
+            self.memory.append(final_message.model_dump())
+
+            return final_message.content or ""
+
+        return "J’ai atteint la limite de boucle sans réponse finale fiable."
+
+    def _execute_tool_call(self, tool_call: Any) -> dict[str, Any]:
+        function_name = tool_call.function.name
+        raw_arguments = tool_call.function.arguments or "{}"
+
+        if function_name not in TOOLS:
+            return {
+                "role": "tool",
+                "tool_call_id": tool_call.id,
+                "name": function_name,
+                "content": f"Unknown tool: {function_name}",
+            }
+
+        try:
+            arguments = json.loads(raw_arguments)
+        except json.JSONDecodeError as exc:
+            return {
+                "role": "tool",
+                "tool_call_id": tool_call.id,
+                "name": function_name,
+                "content": f"Invalid JSON arguments: {exc}",
+            }
+
+        try:
+            result = TOOLS[function_name](**arguments)
+        except Exception as exc:
+            result = f"Tool execution failed: {type(exc).__name__}: {exc}"
+
+        return {
+            "role": "tool",
+            "tool_call_id": tool_call.id,
+            "name": function_name,
+            "content": str(result),
+        }
+
+    def _should_expose_tools(self, user_input: str) -> bool:
+        text = user_input.lower().strip()
+        tool_triggers = [
+            "heure",
+            "date",
+            "additionne",
+            "ajoute",
+            "calcule",
+            "combien font",
+            "liste les fichiers",
+            "lister les fichiers",
+            "affiche les fichiers",
+            "dossier courant",
+            "répertoire courant",
+            "repertoire courant",
+        ]
+
+        return any(trigger in text for trigger in tool_triggers)
