@@ -30,6 +30,15 @@ from py_tool_agent.llm import LLMClient
 from py_tool_agent.tools import TOOLS, TOOL_SCHEMAS
 
 
+RESET = "\033[0m"
+BOLD = "\033[1m"
+DIM = "\033[2m"
+CYAN = "\033[36m"
+GREEN = "\033[32m"
+YELLOW = "\033[33m"
+MAGENTA = "\033[35m"
+
+
 SYSTEM_PROMPT = """
 Identity:
 - Your name is Jonathan le Goéland.
@@ -74,7 +83,11 @@ class ToolAgent:
             tools_enabled = self._should_expose_tools(user_input)
             tools = TOOL_SCHEMAS if tools_enabled else None
 
-            print("DEBUG tools_enabled:", tools_enabled)
+            self._display_info(
+                "Tool access",
+                tools_enabled,
+                color=GREEN if tools_enabled else YELLOW,
+            )
 
             response = self.llm.chat(
                 messages=self.memory,
@@ -84,15 +97,19 @@ class ToolAgent:
             message = response.choices[0].message
             tool_calls = getattr(message, "tool_calls", None)
 
-            print("DEBUG message:", message)
-            print("DEBUG tool_calls:", tool_calls)
+            self._display_info("LLM message", message, color=CYAN)
+            self._display_info("Tool calls", tool_calls or "none", color=MAGENTA)
 
             # Important:
             # If tools were not exposed, never execute tool calls,
             # even if the model produced some.
             if not tools_enabled:
                 if tool_calls:
-                    print("DEBUG ignored_tool_calls_because_tools_disabled:", tool_calls)
+                    self._display_info(
+                        "Ignored tool calls",
+                        tool_calls,
+                        color=YELLOW,
+                    )
 
                     # Do NOT append the broken tool_call message to memory.
                     # Ask again for a plain natural language answer.
@@ -143,6 +160,41 @@ class ToolAgent:
 
         return "J’ai atteint la limite de boucle sans réponse finale fiable."
 
+    @staticmethod
+    def _display_info(title: str, value: Any, *, color: str = CYAN) -> None:
+        print(f"{DIM}╭─{RESET} {color}{BOLD}{title}{RESET}")
+        print(f"{DIM}╰─{RESET} {ToolAgent._format_console_value(value)}")
+
+    @staticmethod
+    def _format_console_value(value: Any) -> str:
+        if isinstance(value, bool):
+            return f"{GREEN}yes{RESET}" if value else f"{YELLOW}no{RESET}"
+
+        if value is None:
+            return f"{DIM}none{RESET}"
+
+        try:
+            value = ToolAgent._to_console_data(value)
+            return json.dumps(value, indent=2, ensure_ascii=False, default=str)
+        except TypeError:
+            return str(value)
+
+    @staticmethod
+    def _to_console_data(value: Any) -> Any:
+        if hasattr(value, "model_dump"):
+            return value.model_dump()
+
+        if isinstance(value, dict):
+            return {
+                key: ToolAgent._to_console_data(item)
+                for key, item in value.items()
+            }
+
+        if isinstance(value, (list, tuple)):
+            return [ToolAgent._to_console_data(item) for item in value]
+
+        return value
+
     def _execute_tool_call(self, tool_call: Any) -> dict[str, Any]:
         function_name = tool_call.function.name
         raw_arguments = tool_call.function.arguments or "{}"
@@ -182,16 +234,27 @@ class ToolAgent:
         tool_triggers = [
             "heure",
             "date",
+            "time",
+            "current time",
+            "what time",
             "additionne",
             "ajoute",
             "calcule",
             "combien font",
+            "add",
+            "sum",
+            "calculate",
+            "compute",
             "liste les fichiers",
             "lister les fichiers",
             "affiche les fichiers",
             "dossier courant",
             "répertoire courant",
             "repertoire courant",
+            "list files",
+            "show files",
+            "current directory",
+            "working directory",
         ]
 
         return any(trigger in text for trigger in tool_triggers)
