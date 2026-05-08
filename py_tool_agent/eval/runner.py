@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import json
+import os
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
@@ -36,9 +38,35 @@ class ScenarioEvalResult:
     turns: list[TurnEvalResult] = field(default_factory=list)
 
 
+@dataclass
+class EvalRunMetadata:
+    """Metadata that makes eval reports comparable across runs."""
+
+    created_at: str
+    model: str
+    provider_model: str
+    scenarios_path: str
+    temperature: float | None = None
+    timeout_seconds: float | None = None
+    context_size: int | None = None
+    api_base: str | None = None
+    runner: str
+
+
 def load_scenarios(path: Path) -> list[dict[str, Any]]:
     """Load scenario definitions from a JSON file."""
-    return json.loads(path.read_text())
+    data = json.loads(path.read_text())
+
+    if isinstance(data, list):
+        return data
+
+    if isinstance(data, dict) and isinstance(data.get("scenarios"), list):
+        return data["scenarios"]
+
+    raise ValueError(
+        "scenario file must be a list of scenarios or an object with a "
+        "'scenarios' list"
+    )
 
 
 def run_scenarios(path: Path, model: str = "deterministic-fixture") -> list[ScenarioEvalResult]:
@@ -88,14 +116,21 @@ def run_scenario(
     )
 
 
-def write_report(results: list[ScenarioEvalResult], out_dir: Path) -> None:
+def write_report(
+    results: list[ScenarioEvalResult],
+    out_dir: Path,
+    metadata: EvalRunMetadata,
+) -> None:
     """Write machine-readable and Markdown evaluation reports."""
     out_dir.mkdir(parents=True, exist_ok=True)
-    results_data = [asdict(result) for result in results]
+    report_data = {
+        "run": asdict(metadata),
+        "scenarios": [asdict(result) for result in results],
+    }
     (out_dir / "results.json").write_text(
-        json.dumps(results_data, indent=2, ensure_ascii=False)
+        json.dumps(report_data, indent=2, ensure_ascii=False)
     )
-    (out_dir / "summary.md").write_text(_markdown_summary(results))
+    (out_dir / "summary.md").write_text(_markdown_summary(results, metadata))
 
 
 def main() -> None:
@@ -121,20 +156,58 @@ def main() -> None:
     args = parser.parse_args()
 
     results = run_scenarios(args.scenarios, model=args.model)
+    metadata = build_metadata(args.scenarios, args.model)
     if args.out:
-        write_report(results, args.out)
+        write_report(results, args.out, metadata)
 
-    print(_markdown_summary(results))
+    print(_markdown_summary(results, metadata))
     if not all(result.passed for result in results):
         raise SystemExit(1)
 
 
-def _markdown_summary(results: list[ScenarioEvalResult]) -> str:
+def build_metadata(
+    scenarios_path: Path,
+    model: str,
+    *,
+    runner: str = "deterministic-fixture",
+) -> EvalRunMetadata:
+    """Build run metadata from CLI args and environment configuration."""
+    is_ollama_model = model.startswith("ollama/")
+
+    return EvalRunMetadata(
+        created_at=dt.datetime.now(dt.UTC).replace(microsecond=0).isoformat(),
+        model=model,
+        provider_model=_provider_model_name(model),
+        scenarios_path=str(scenarios_path),
+        temperature=_float_env("AGENT_TEMPERATURE", default=0.2 if is_ollama_model else None),
+        timeout_seconds=_float_env("AGENT_REQUEST_TIMEOUT", default=20 if is_ollama_model else None),
+        context_size=_int_env("AGENT_CONTEXT_SIZE"),
+        api_base=os.getenv("OLLAMA_API_BASE", "http://localhost:11434")
+        if is_ollama_model
+        else None,
+        runner=runner,
+    )
+
+
+def _markdown_summary(
+    results: list[ScenarioEvalResult],
+    metadata: EvalRunMetadata,
+) -> str:
     """Build a compact Markdown summary for humans."""
     passed = sum(1 for result in results if result.passed)
     overall_status = PASS_MARK if passed == len(results) else FAIL_MARK
     lines = [
         "# Agent Eval Summary",
+        "",
+        f"- created_at: `{metadata.created_at}`",
+        f"- model: `{metadata.model}`",
+        f"- provider_model: `{metadata.provider_model}`",
+        f"- runner: `{metadata.runner}`",
+        f"- temperature: `{metadata.temperature}`",
+        f"- timeout_seconds: `{metadata.timeout_seconds}`",
+        f"- context_size: `{metadata.context_size}`",
+        f"- api_base: `{metadata.api_base}`",
+        f"- scenarios: `{metadata.scenarios_path}`",
         "",
         f"{overall_status} Scenarios: {passed}/{len(results)} passed",
         "",
@@ -162,6 +235,38 @@ def _markdown_summary(results: list[ScenarioEvalResult]) -> str:
         lines.append("")
 
     return "\n".join(lines)
+
+
+def _provider_model_name(model: str) -> str:
+    """Return the provider-facing model name used by LiteLLM."""
+    if model.startswith("ollama/"):
+        return model.replace("ollama/", "ollama_chat/", 1)
+
+    return model
+
+
+def _float_env(name: str, *, default: float | None = None) -> float | None:
+    """Return an environment variable parsed as float, if available."""
+    value = os.getenv(name)
+    if value is None:
+        return default
+
+    try:
+        return float(value)
+    except ValueError:
+        return None
+
+
+def _int_env(name: str) -> int | None:
+    """Return an environment variable parsed as int, if available."""
+    value = os.getenv(name)
+    if value is None:
+        return None
+
+    try:
+        return int(value)
+    except ValueError:
+        return None
 
 
 if __name__ == "__main__":

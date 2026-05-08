@@ -203,9 +203,15 @@ The recommended test path is:
 ```
 
 It compile-checks the package, runs the deterministic unittest suite, and writes
-an eval report to `eval_runs/latest`.
+an eval report to a timestamped folder such as
+`eval_runs/2026-05-08T13-45-12Z`. It also refreshes `eval_runs/latest` for quick
+local inspection.
 
 The output uses `✅` for passed steps and `❌` for failures.
+
+Reports include run metadata: creation time, model label, provider-facing model
+name, scenario path, and available runtime parameters such as temperature,
+timeout, context size, and API base.
 
 Scenarios live in `tests/eval_scenarios.json`. The supporting files are:
 
@@ -240,6 +246,13 @@ Generate a readable JSON and Markdown report:
 uv run python -m py_tool_agent.eval.runner \
   --scenarios tests/eval_scenarios.json \
   --out eval_runs/latest
+```
+
+For deterministic fixture runs, the model label defaults to
+`deterministic-fixture`. To label a run explicitly:
+
+```bash
+EVAL_MODEL_LABEL=deterministic-fixture ./scripts/test.sh
 ```
 
 Current phase-1 scenario coverage:

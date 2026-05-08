@@ -1,5 +1,7 @@
-[
-  {
+{
+  "$schema": "./eval_scenarios.schema.json",
+  "scenarios": [
+    {
     "id": "date_and_file_chaining_01",
     "description": "Checks date chaining, file filtering, size follow-up, tool protocol, and hallucination fallbacks.",
     "fixtures": {
@@ -148,5 +150,6 @@
         }
       }
     ]
-  }
-]
+    }
+  ]
+}

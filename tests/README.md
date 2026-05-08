@@ -12,7 +12,30 @@ That script runs:
 
 1. Python compile checks.
 2. The deterministic unittest suite.
-3. The eval runner, which writes `eval_runs/latest/results.json` and `eval_runs/latest/summary.md`.
+3. The eval runner, which writes `results.json` and `summary.md`.
+
+By default the report is written to a timestamped folder:
+
+```text
+eval_runs/2026-05-08T13-45-12Z/
+```
+
+The script also refreshes `eval_runs/latest/` for quick local inspection.
+
+The report includes metadata such as:
+
+- creation time
+- model label
+- provider-facing model name
+- scenario path
+- temperature, timeout, context size, and API base when configured
+
+For this deterministic phase, the model label defaults to
+`deterministic-fixture`. You can override only the label:
+
+```bash
+EVAL_MODEL_LABEL=my-local-baseline ./scripts/test.sh
+```
 
 ## Running The Unittest Directly
 
@@ -43,6 +66,16 @@ Use these supporting files when adding scenarios:
 - `eval_scenarios.example.jsonc` is a commented teaching example.
 - `eval_scenarios.schema.json` documents and validates the real JSON shape in editors.
 
+The real scenario file starts with `$schema` so schema-aware editors can offer
+completion and validation automatically:
+
+```json
+{
+  "$schema": "./eval_scenarios.schema.json",
+  "scenarios": []
+}
+```
+
 Each scenario can validate:
 
 - which tools were used
@@ -57,52 +90,57 @@ seen while testing Ollama models.
 
 ## Adding A Simple Scenario
 
-Add a new object to the top-level array in `eval_scenarios.json`:
+Add a new object to the top-level `scenarios` array in `eval_scenarios.json`:
 
 ```json
 {
-  "id": "simple_date_01",
-  "description": "Checks today and tomorrow date handling.",
-  "fixtures": {
-    "current_time": "2026-05-08T14:01:32",
-    "directory_listing": "total 0"
-  },
-  "turns": [
+  "$schema": "./eval_scenarios.schema.json",
+  "scenarios": [
     {
-      "input": "What is today's date and tomorrow's date?",
-      "llm_responses": [
+      "id": "simple_date_01",
+      "description": "Checks today and tomorrow date handling.",
+      "fixtures": {
+        "current_time": "2026-05-08T14:01:32",
+        "directory_listing": "total 0"
+      },
+      "turns": [
         {
-          "content": "",
-          "tool_calls": [
+          "input": "What is today's date and tomorrow's date?",
+          "llm_responses": [
             {
-              "id": "call_time_1",
-              "name": "get_current_time",
-              "arguments": {}
+              "content": "",
+              "tool_calls": [
+                {
+                  "id": "call_time_1",
+                  "name": "get_current_time",
+                  "arguments": {}
+                }
+              ]
+            },
+            {
+              "content": "Today is May 14, 2025, and tomorrow is May 15, 2025."
             }
-          ]
-        },
-        {
-          "content": "Today is May 14, 2025, and tomorrow is May 15, 2025."
+          ],
+          "expected_tools": [
+            "get_current_time"
+          ],
+          "forbidden_tools": [
+            "add_numbers"
+          ],
+          "assertions": {
+            "answer_contains": [
+              "2026-05-08",
+              "2026-05-09"
+            ],
+            "answer_not_contains": [
+              "2025"
+            ],
+            "date_answer_matches_tool_result": true,
+            "memory_valid": true,
+            "fallback_used": true
+          }
         }
-      ],
-      "expected_tools": [
-        "get_current_time"
-      ],
-      "forbidden_tools": [
-        "add_numbers"
-      ],
-      "assertions": {
-        "answer_contains": [
-          "2026-05-08",
-          "2026-05-09"
-        ],
-        "answer_not_contains": [
-          "2025"
-        ],
-        "date_answer_matches_tool_result": true,
-        "memory_valid": true,
-        "fallback_used": true
-      }
+      ]
     }
   ]
 }
@@ -111,6 +149,7 @@ Add a new object to the top-level array in `eval_scenarios.json`:
 The important sections are:
 
 - `fixtures`: fixed tool outputs for deterministic tests.
+- `scenarios`: scenario objects run by the eval runner.
 - `turns`: user messages run sequentially against the same agent.
 - `llm_responses`: fake model messages consumed by the agent.
 - `expected_tools`: exact ordered tool calls expected after adapter normalization.

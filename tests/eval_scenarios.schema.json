@@ -3,9 +3,23 @@
   "$id": "https://example.local/ai-tool-agent-tutorial/eval_scenarios.schema.json",
   "title": "Tool Agent Eval Scenarios",
   "description": "Deterministic behavioral scenarios for the tool agent eval runner.",
-  "type": "array",
-  "items": {
-    "$ref": "#/$defs/scenario"
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "scenarios"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Relative or absolute path to this JSON schema for editor integration."
+    },
+    "scenarios": {
+      "type": "array",
+      "description": "Deterministic scenarios executed by the eval runner.",
+      "items": {
+        "$ref": "#/$defs/scenario"
+      }
+    }
   },
   "$defs": {
     "scenario": {
