@@ -9,6 +9,7 @@ from py_tool_agent.llm import LLMClient
 
 
 def main() -> None:
+    """Run the interactive command-line loop for the tool agent."""
     load_dotenv()
 
     llm = LLMClient.from_env()

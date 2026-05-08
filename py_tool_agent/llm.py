@@ -24,6 +24,7 @@ class LLMClient:
         api_base: str | None = None,
         timeout: float = 60,
     ) -> None:
+        """Store model connection settings used for every completion request."""
         self.model = model
         self.temperature = temperature
         self.api_base = api_base
@@ -31,7 +32,8 @@ class LLMClient:
 
     @classmethod
     def from_env(cls) -> "LLMClient":
-        model = os.getenv("AGENT_MODEL", "ollama/gemma4:26b")
+        """Create an LLM client from AGENT_* and OLLAMA_* environment variables."""
+        model = os.getenv("AGENT_MODEL", "ollama/qwen3")
 
         api_base = None
         if model.startswith("ollama/"):
@@ -49,6 +51,7 @@ class LLMClient:
         messages: list[dict[str, Any]],
         tools: list[dict[str, Any]] | None = None,
     ) -> Any:
+        """Send one chat completion request through LiteLLM."""
         kwargs: dict[str, Any] = {
             "model": self._model_for_request(),
             "messages": messages,
@@ -66,6 +69,7 @@ class LLMClient:
         return completion(**kwargs)
 
     def _model_for_request(self) -> str:
+        """Normalize Ollama model names to LiteLLM's chat-provider syntax."""
         if self.model.startswith("ollama/"):
             return self.model.replace("ollama/", "ollama_chat/", 1)
 
