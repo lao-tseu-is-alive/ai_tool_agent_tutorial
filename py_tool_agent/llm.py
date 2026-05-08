@@ -22,10 +22,12 @@ class LLMClient:
         model: str,
         temperature: float = 0.2,
         api_base: str | None = None,
+        timeout: float = 60,
     ) -> None:
         self.model = model
         self.temperature = temperature
         self.api_base = api_base
+        self.timeout = timeout
 
     @classmethod
     def from_env(cls) -> "LLMClient":
@@ -39,6 +41,7 @@ class LLMClient:
             model=model,
             temperature=float(os.getenv("AGENT_TEMPERATURE", "0.2")),
             api_base=api_base,
+            timeout=float(os.getenv("AGENT_REQUEST_TIMEOUT", "20")),
         )
 
     def chat(
@@ -47,9 +50,10 @@ class LLMClient:
         tools: list[dict[str, Any]] | None = None,
     ) -> Any:
         kwargs: dict[str, Any] = {
-            "model": self.model,
+            "model": self._model_for_request(),
             "messages": messages,
             "temperature": self.temperature,
+            "timeout": self.timeout,
         }
 
         if self.api_base:
@@ -60,3 +64,9 @@ class LLMClient:
             kwargs["tool_choice"] = "auto"
 
         return completion(**kwargs)
+
+    def _model_for_request(self) -> str:
+        if self.model.startswith("ollama/"):
+            return self.model.replace("ollama/", "ollama_chat/", 1)
+
+        return self.model
