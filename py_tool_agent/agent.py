@@ -26,8 +26,10 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from pydantic import ValidationError
+
 from py_tool_agent.llm import LLMClient
-from py_tool_agent.tools import TOOLS, TOOL_SCHEMAS
+from py_tool_agent.tools import TOOLS, TOOL_ARGUMENT_MODELS, TOOL_SCHEMAS
 
 
 RESET = "\033[0m"
@@ -41,25 +43,31 @@ MAGENTA = "\033[35m"
 
 SYSTEM_PROMPT = """
 Identity:
-- Your name is Jonathan le Goéland.
-- Do not mention the underlying model name unless the user explicitly asks.
-- You help others by answering like Yoda usually talks characterized by a unique syntax known as Object-Subject-Verb (OSV) or anastrophe, where he places the most crucial part of the sentence—the object—at the beginning for emphasis. This deliberate inversion makes his speech sound wise, archaic, and puzzling, forcing listeners to focus more intensely on his words 
-- You also have access to some tools, but USING those tools IS OPTIONAL.
+- You are a helpful, professional assistant.
+- You are being used to test local Ollama models, including Qwen models.
+- Do not mention implementation details, model internals, or tooling unless the user asks.
 
-Decision rules:
-- If the user greets you, answers casually, asks what you can do, or asks a general question, DO NOT call a tool.
-- Call a tool only when the user explicitly asks for information or an action that requires that tool.
+Response style:
+- Be clear, direct, and practical.
+- Keep answers concise unless the user asks for detail.
+- Ask a brief clarifying question when the request is ambiguous.
+- Do not invent facts, tool results, files, or command outputs.
+- If you cannot complete a request, explain the limitation plainly.
+
+Tool rules:
+- You may use tools when they are available, but tool use is optional.
+- Call a tool only when the user asks for information or an action that the tool can provide.
+- If the user greets you, asks a general question, or asks what you can do, answer naturally without calling a tool.
 - Never call a tool just to demonstrate capabilities.
 - Never call a tool that is not listed in the available tools.
-- If the user asks what you can do, explain your available tools in natural language without calling them.
+- Never claim that you checked files, directories, time, or calculations unless you used a tool and received a result.
+- Do not write shell commands as a substitute for using an available tool.
 - After receiving a tool result, produce a final answer in natural language.
-- Never invent tool results.
-- Keep answers concise and practical.
 
 Available capabilities:
 - get_current_time: get the current local date and time.
 - add_numbers: add two numbers.
-- list_current_directory: list files in the current working directory.
+- list_current_directory: list files in the current working directory with ls -al style metadata.
 """
 
 
@@ -217,8 +225,25 @@ class ToolAgent:
                 "content": f"Invalid JSON arguments: {exc}",
             }
 
+        argument_model = TOOL_ARGUMENT_MODELS[function_name]
         try:
-            result = TOOLS[function_name](**arguments)
+            validated_arguments = argument_model.model_validate(arguments).model_dump()
+        except ValidationError as exc:
+            return {
+                "role": "tool",
+                "tool_call_id": tool_call.id,
+                "name": function_name,
+                "content": (
+                    "Invalid tool arguments: "
+                    + json.dumps(
+                        exc.errors(include_url=False, include_input=False),
+                        ensure_ascii=False,
+                    )
+                ),
+            }
+
+        try:
+            result = TOOLS[function_name](**validated_arguments)
         except Exception as exc:
             result = f"Tool execution failed: {type(exc).__name__}: {exc}"
 
@@ -253,8 +278,37 @@ class ToolAgent:
             "repertoire courant",
             "list files",
             "show files",
+            "files",
+            "directory",
+            "folder",
             "current directory",
             "working directory",
+            "today",
+            "modified",
+            "recent",
         ]
 
-        return any(trigger in text for trigger in tool_triggers)
+        if any(trigger in text for trigger in tool_triggers):
+            return True
+
+        confirmations = {"yes", "yes please", "y", "oui", "ok", "sure"}
+        if text in confirmations:
+            return self._last_assistant_offered_tool_followup()
+
+        return False
+
+    def _last_assistant_offered_tool_followup(self) -> bool:
+        for message in reversed(self.memory[:-1]):
+            if message.get("role") != "assistant":
+                continue
+
+            content = message.get("content") or ""
+            text = content.lower()
+
+            return (
+                "would you like" in text
+                and "detail" in text
+                and any(word in text for word in ("file", "directory", "folder"))
+            )
+
+        return False
