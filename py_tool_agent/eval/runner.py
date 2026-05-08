@@ -46,11 +46,11 @@ class EvalRunMetadata:
     model: str
     provider_model: str
     scenarios_path: str
+    runner: str
     temperature: float | None = None
     timeout_seconds: float | None = None
     context_size: int | None = None
     api_base: str | None = None
-    runner: str
 
 
 def load_scenarios(path: Path) -> list[dict[str, Any]]:
@@ -97,7 +97,7 @@ def run_scenario(
         if trace is None:
             raise AssertionError("agent did not produce a trace")
 
-        assertion_result = assert_turn(trace, turn)
+        assertion_result = assert_turn(trace, turn, profile="deterministic")
         turns.append(
             TurnEvalResult(
                 input=turn["input"],

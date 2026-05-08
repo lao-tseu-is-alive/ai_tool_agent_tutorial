@@ -65,6 +65,7 @@ tests/
   test_eval_scenarios.py
 scripts/
   test.sh             # One-command compile, test, and eval report runner
+  eval_live.sh        # Run the same scenarios against a real selected model
 ```
 
 ## Quickstart
@@ -266,6 +267,40 @@ Current phase-1 scenario coverage:
 
 The next natural step is a cross-model runner that executes the same scenario
 prompts against real Ollama models and writes comparative reliability reports.
+
+## Live Model Evals
+
+Deterministic evals protect the agent plumbing. Live evals test the real model
+behavior.
+
+Run the current selected model from `AGENT_MODEL`:
+
+```bash
+./scripts/eval_live.sh
+```
+
+Run a specific model:
+
+```bash
+./scripts/eval_live.sh ollama/qwen3
+./scripts/eval_live.sh ollama/gemma4:26b
+./scripts/eval_live.sh ollama/qwen2.5-coder:latest
+```
+
+Live evals use the same `tests/eval_scenarios.json` prompts and assertions, but
+they ignore `llm_responses` and call the real model through LiteLLM/Ollama.
+
+Reports are written to timestamped folders:
+
+```text
+eval_runs/live/2026-05-08T14-30-00Z-ollama_qwen3/
+```
+
+The latest live report is also copied to:
+
+```text
+eval_runs/live/latest/
+```
 
 ## Design Principles
 

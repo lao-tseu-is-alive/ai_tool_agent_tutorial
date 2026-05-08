@@ -19,13 +19,15 @@ class AssertionResult:
 def assert_turn(
     trace: AgentTurnTrace,
     turn: dict[str, Any],
+    *,
+    profile: str = "deterministic",
 ) -> AssertionResult:
     """Run all configured assertions for one turn trace."""
     failures: list[str] = []
     expected_tools = turn.get("expected_tools")
     forbidden_tools = turn.get("forbidden_tools", [])
     actual_tools = [tool_call["function"]["name"] for tool_call in trace.tool_calls]
-    assertions = turn.get("assertions", {})
+    assertions = _assertions_for_profile(turn, profile)
 
     if expected_tools is not None and actual_tools != expected_tools:
         failures.append(f"expected tools {expected_tools}, got {actual_tools}")
@@ -59,6 +61,15 @@ def assert_turn(
             )
 
     return AssertionResult(passed=not failures, failures=failures)
+
+
+def _assertions_for_profile(turn: dict[str, Any], profile: str) -> dict[str, Any]:
+    """Return assertions for a deterministic or live eval profile."""
+    profile_assertions = turn.get(f"{profile}_assertions")
+    if profile_assertions is not None:
+        return profile_assertions
+
+    return turn.get("assertions", {})
 
 
 def validate_tool_memory(memory: list[dict[str, Any]]) -> list[str]:

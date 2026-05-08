@@ -67,6 +67,14 @@
           "grounded_in_tool_results": true,
           "memory_valid": true,
           "fallback_used": true
+        },
+        "live_assertions": {
+          "answer_not_contains": [
+            "2025"
+          ],
+          "date_answer_matches_tool_result": true,
+          "grounded_in_tool_results": true,
+          "memory_valid": true
         }
       },
       {
@@ -87,6 +95,10 @@
           "answer_contains": [
             "2026-05-07"
           ],
+          "date_answer_matches_tool_result": true,
+          "memory_valid": true
+        },
+        "live_assertions": {
           "date_answer_matches_tool_result": true,
           "memory_valid": true
         }

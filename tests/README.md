@@ -88,6 +88,26 @@ Each scenario can validate:
 The current scenario protects the date-chaining and directory-listing behavior
 seen while testing Ollama models.
 
+## Deterministic vs Live
+
+The same scenario file is used in two ways:
+
+- `./scripts/test.sh` uses `llm_responses` and a fake LLM. This tests the agent
+  contract, fallbacks, tracing, and assertions.
+- `./scripts/eval_live.sh` ignores `llm_responses` and calls the selected real
+  model. This tests actual model behavior.
+
+For live evals, the important fields are:
+
+- `input`
+- `expected_tools`
+- `forbidden_tools`
+- `assertions`
+- `live_assertions` when live behavior needs a slightly different expectation
+
+For deterministic evals, `llm_responses` is also required when the turn reaches
+the fake LLM.
+
 ## Adding A Simple Scenario
 
 Add a new object to the top-level `scenarios` array in `eval_scenarios.json`:

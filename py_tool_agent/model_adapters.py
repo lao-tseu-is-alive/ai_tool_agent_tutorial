@@ -176,6 +176,10 @@ class ModelAdapter:
         memory: list[dict[str, Any]],
     ) -> list[str]:
         """Infer relevant tool names from the current turn and recent context."""
+        text = user_input.lower().strip()
+        if self._looks_like_file_request(text) and "list_current_directory" in self.registry:
+            return ["list_current_directory"]
+
         return self.registry.relevant_tool_names(
             self._tool_intent_text(user_input, memory)
         )

@@ -104,6 +104,12 @@
         },
         "assertions": {
           "$ref": "#/$defs/assertions"
+        },
+        "deterministic_assertions": {
+          "$ref": "#/$defs/assertions"
+        },
+        "live_assertions": {
+          "$ref": "#/$defs/assertions"
         }
       }
     },
