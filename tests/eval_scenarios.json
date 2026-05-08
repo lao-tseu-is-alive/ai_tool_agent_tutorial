@@ -1,0 +1,152 @@
+[
+  {
+    "id": "date_and_file_chaining_01",
+    "description": "Checks date chaining, file filtering, size follow-up, tool protocol, and hallucination fallbacks.",
+    "fixtures": {
+      "current_time": "2026-05-08T14:01:32",
+      "directory_listing": "total 336\ndrwxrwxr-x  8 cgil     cgil         4096 May  8 14:00 .\ndrwxrwxr-x 50 cgil     users        4096 May  7 17:08 ..\ndrwxr-xr-x  2 cgil     cgil         4096 May  8 10:57 .agents\ndrwxr-xr-x  2 cgil     cgil         4096 May  8 10:57 .codex\n-rw-rw-r--  1 cgil     cgil          251 May  8 14:00 .env\ndrwxrwxr-x  8 cgil     cgil         4096 May  8 13:34 .git\n-rw-rw-r--  1 cgil     cgil          149 May  7 17:51 .gitignore\ndrwxrwxr-x  3 cgil     cgil         4096 May  8 13:57 .idea\n-rw-rw-r--  1 cgil     cgil            5 May  7 15:41 .python-version\ndrwxrwxr-x  4 cgil     cgil         4096 May  7 15:44 .venv\n-rw-rw-r--  1 cgil     cgil         1121 May  7 16:15 backend.py\n-rw-rw-r--  1 cgil     cgil         1059 May  7 17:05 LICENSE\ndrwxrwxr-x  3 cgil     cgil         4096 May  8 13:30 py_tool_agent\n-rw-rw-r--  1 cgil     cgil          287 May  7 16:16 pyproject.toml\n-rw-rw-r--  1 cgil     cgil          420 May  7 17:56 README.md\n-rw-rw-r--  1 cgil     cgil       281384 May  7 16:16 uv.lock"
+    },
+    "turns": [
+      {
+        "input": "Hi my name is Carlos, and you?",
+        "llm_responses": [
+          {
+            "content": "Hello Carlos. I am a helpful professional assistant.",
+            "reasoning_content": "Greeting only; no tool needed."
+          }
+        ],
+        "expected_tools": [],
+        "forbidden_tools": [
+          "get_current_time",
+          "list_current_directory",
+          "add_numbers"
+        ],
+        "assertions": {
+          "answer_contains": [
+            "Carlos"
+          ],
+          "memory_valid": true
+        }
+      },
+      {
+        "input": "Can you tell today and tomorrow date?",
+        "llm_responses": [
+          {
+            "content": "",
+            "tool_calls": [
+              {
+                "id": "call_time_1",
+                "name": "get_current_time",
+                "arguments": {}
+              }
+            ],
+            "reasoning_content": "Use get_current_time, then calculate tomorrow."
+          },
+          {
+            "content": "Today is May 14, 2025, and tomorrow is May 15, 2025.",
+            "reasoning_content": "Bad final text that should be overridden by deterministic fallback."
+          }
+        ],
+        "expected_tools": [
+          "get_current_time"
+        ],
+        "forbidden_tools": [
+          "add_numbers"
+        ],
+        "assertions": {
+          "answer_contains": [
+            "2026-05-08",
+            "2026-05-09"
+          ],
+          "answer_not_contains": [
+            "2025"
+          ],
+          "date_answer_matches_tool_result": true,
+          "grounded_in_tool_results": true,
+          "memory_valid": true,
+          "fallback_used": true
+        }
+      },
+      {
+        "input": "What about yesterday?",
+        "llm_responses": [
+          {
+            "content": "Yesterday was 2026-05-07.",
+            "reasoning_content": "Direct answer, but adapter should still infer time tool."
+          },
+          {
+            "content": "Yesterday was 2026-05-07."
+          }
+        ],
+        "expected_tools": [
+          "get_current_time"
+        ],
+        "assertions": {
+          "answer_contains": [
+            "2026-05-07"
+          ],
+          "date_answer_matches_tool_result": true,
+          "memory_valid": true
+        }
+      },
+      {
+        "input": "Any python files from yesterday in current dir?",
+        "llm_responses": [
+          {
+            "content": "",
+            "tool_calls": [
+              {
+                "id": "call_ls_1",
+                "name": "list_current_directory",
+                "arguments": {}
+              }
+            ],
+            "reasoning_content": "List directory and filter Python files from yesterday."
+          }
+        ],
+        "expected_tools": [
+          "list_current_directory"
+        ],
+        "assertions": {
+          "answer_contains": [
+            "backend.py"
+          ],
+          "grounded_in_tool_results": true,
+          "memory_valid": true,
+          "fallback_used": true
+        }
+      },
+      {
+        "input": "What's the size of this file?",
+        "llm_responses": [
+          {
+            "content": "",
+            "tool_calls": [
+              {
+                "id": "call_ls_2",
+                "name": "list_current_directory",
+                "arguments": {}
+              }
+            ],
+            "reasoning_content": "Use directory metadata to resolve size of backend.py."
+          }
+        ],
+        "expected_tools": [
+          "list_current_directory"
+        ],
+        "assertions": {
+          "answer_contains": [
+            "backend.py",
+            "1121 bytes"
+          ],
+          "answer_not_contains": [
+            "1234"
+          ],
+          "grounded_in_tool_results": true,
+          "memory_valid": true,
+          "fallback_used": true
+        }
+      }
+    ]
+  }
+]

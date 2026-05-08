@@ -11,5 +11,9 @@ wheels/
 
 # do not save secrets
 .env
+
+# Local eval reports
+eval_runs/
+
 # IDE
 .idea

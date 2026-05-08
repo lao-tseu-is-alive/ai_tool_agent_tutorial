@@ -322,9 +322,54 @@ def _target_date_from_request(text: str) -> dt.date | None:
     today = dt.date.today()
 
     if "yesterday" in text or "hier" in text:
+        contextual_yesterday = _date_from_context(
+            text,
+            (
+                r"yesterday(?:'s date)?\s+(?:was|is)\s+(\d{4}-\d{2}-\d{2})",
+                r"hier\s+(?:était|etait|est)\s+(\d{4}-\d{2}-\d{2})",
+            ),
+        )
+        if contextual_yesterday is not None:
+            return contextual_yesterday
+
+        contextual_today = _date_from_context(
+            text,
+            (
+                r"current date\s+(?:was|is)\s+(\d{4}-\d{2}-\d{2})",
+                r"today\s+(?:was|is)\s+(\d{4}-\d{2}-\d{2})",
+            ),
+        )
+        if contextual_today is not None:
+            return contextual_today - dt.timedelta(days=1)
+
         return today - dt.timedelta(days=1)
 
     if "today" in text or "aujourd" in text:
+        contextual_today = _date_from_context(
+            text,
+            (
+                r"current date\s+(?:was|is)\s+(\d{4}-\d{2}-\d{2})",
+                r"today\s+(?:was|is)\s+(\d{4}-\d{2}-\d{2})",
+            ),
+        )
+        if contextual_today is not None:
+            return contextual_today
+
         return today
+
+    return None
+
+
+def _date_from_context(text: str, patterns: tuple[str, ...]) -> dt.date | None:
+    """Return the first ISO date captured by one of the supplied patterns."""
+    for pattern in patterns:
+        match = re.search(pattern, text)
+        if match is None:
+            continue
+
+        try:
+            return dt.date.fromisoformat(match.group(1))
+        except ValueError:
+            return None
 
     return None

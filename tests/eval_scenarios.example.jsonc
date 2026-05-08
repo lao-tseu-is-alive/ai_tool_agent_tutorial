@@ -1,0 +1,86 @@
+[
+  {
+    // Stable id shown in reports.
+    "id": "simple_date_01",
+
+    // Short description of the behavior protected by this scenario.
+    "description": "Checks that a today/tomorrow request uses the time tool and stays grounded.",
+
+    // Tool outputs are fixed so the test is deterministic.
+    "fixtures": {
+      // Returned by get_current_time.
+      "current_time": "2026-05-08T14:01:32",
+
+      // Returned by list_current_directory if this scenario needs file tests.
+      "directory_listing": "total 0"
+    },
+
+    // Turns run sequentially against the same agent instance.
+    "turns": [
+      {
+        // User message sent to the agent.
+        "input": "What is today's date and tomorrow's date?",
+
+        // Fake LLM messages consumed by the agent during this turn.
+        "llm_responses": [
+          {
+            // Empty content is normal when the model chooses a tool call.
+            "content": "",
+
+            // Native-looking tool calls returned by the scripted LLM.
+            "tool_calls": [
+              {
+                "id": "call_time_1",
+                "name": "get_current_time",
+                "arguments": {}
+              }
+            ],
+
+            // Optional trace/debug field. Useful when comparing model behavior.
+            "reasoning_content": "The request needs the current date."
+          },
+          {
+            // This intentionally wrong answer proves the deterministic fallback works.
+            "content": "Today is May 14, 2025, and tomorrow is May 15, 2025."
+          }
+        ],
+
+        // Exact ordered tool calls expected after adapter normalization.
+        "expected_tools": [
+          "get_current_time"
+        ],
+
+        // Tools that must not appear in the trace.
+        "forbidden_tools": [
+          "add_numbers"
+        ],
+
+        // Assertions checked against the trace and final answer.
+        "assertions": {
+          // Final answer must include these fragments.
+          "answer_contains": [
+            "2026-05-08",
+            "2026-05-09"
+          ],
+
+          // Final answer must not include these fragments.
+          "answer_not_contains": [
+            "2025"
+          ],
+
+          // Checks today/tomorrow/yesterday against get_current_time output.
+          "date_answer_matches_tool_result": true,
+
+          // Checks obvious claims, such as file names and byte sizes, against tool text.
+          "grounded_in_tool_results": true,
+
+          // Checks role: assistant tool_calls are paired with matching role: tool messages.
+          "memory_valid": true,
+
+          // This turn should use fallback because the scripted final answer is wrong.
+          "fallback_used": true
+        }
+      }
+    ]
+  }
+]

@@ -19,6 +19,7 @@ from py_tool_agent.llm import LLMClient
 from py_tool_agent.model_adapters import ModelAdapter, adapter_for_model
 from py_tool_agent.tool_registry import ToolRegistry
 from py_tool_agent.tools import DEFAULT_TOOL_REGISTRY
+from py_tool_agent.tracing import AgentTurnTrace, to_trace_data, tool_call_to_dict
 
 
 RESET = "\033[0m"
@@ -70,25 +71,35 @@ class ToolAgent:
         max_steps: int = 5,
         registry: ToolRegistry = DEFAULT_TOOL_REGISTRY,
         adapter: ModelAdapter | None = None,
+        verbose: bool = True,
     ) -> None:
         """Create an agent with an LLM client, tool registry, and model adapter."""
         self.llm = llm
         self.max_steps = max_steps
         self.registry = registry
         self.adapter = adapter or adapter_for_model(getattr(llm, "model", ""), registry)
+        self.verbose = verbose
         self.memory: list[dict[str, Any]] = [
             {"role": "system", "content": SYSTEM_PROMPT.strip()}
         ]
+        self.last_trace: AgentTurnTrace | None = None
+        self.trace_history: list[AgentTurnTrace] = []
 
     def run(self, user_input: str) -> str:
         """Handle one user turn and return the assistant's final answer."""
+        trace = AgentTurnTrace(user_input=user_input)
         self.memory.append({"role": "user", "content": user_input})
 
         if self.adapter.is_capability_question(user_input):
-            return self._append_assistant_answer(self.registry.capability_text())
+            answer = self._append_assistant_answer(self.registry.capability_text())
+            trace.final_answer = answer
+            self._finish_trace(trace)
+
+            return answer
 
         for _ in range(self.max_steps):
             tools_enabled = self.adapter.should_expose_tools(user_input, self.memory)
+            trace.tools_enabled = tools_enabled
             tool_schemas = self.adapter.tool_schemas() if tools_enabled else None
 
             self._display_info(
@@ -106,9 +117,14 @@ class ToolAgent:
                 ),
             )
             if isinstance(response, str):
+                trace.error = response
+                trace.final_answer = response
+                self._finish_trace(trace)
+
                 return response
 
             message = response.choices[0].message
+            trace.llm_message = to_trace_data(message)
             tool_calls, normalized_tool_calls = ([], False)
             if tools_enabled:
                 tool_calls, normalized_tool_calls = self.adapter.extract_tool_calls(
@@ -127,10 +143,16 @@ class ToolAgent:
 
             self._display_info("LLM message", message, color=CYAN)
             self._display_info("Tool calls", tool_calls or "none", color=MAGENTA)
+            trace.tool_calls = [tool_call_to_dict(tool_call) for tool_call in tool_calls]
+            trace.normalized_tool_calls = normalized_tool_calls
 
             if not tools_enabled:
                 self.memory.append(message.model_dump())
-                return message.content or ""
+                answer = message.content or ""
+                trace.final_answer = answer
+                self._finish_trace(trace)
+
+                return answer
 
             self.memory.append(
                 self.adapter.message_dump(
@@ -141,21 +163,41 @@ class ToolAgent:
             )
 
             if not tool_calls:
-                return message.content or ""
+                answer = message.content or ""
+                trace.final_answer = answer
+                self._finish_trace(trace)
+
+                return answer
 
             tool_results = self._execute_tool_calls(tool_calls)
+            trace.tool_results = [to_trace_data(result) for result in tool_results]
             immediate_answer = self._immediate_tool_answer(user_input, tool_results)
             if immediate_answer:
                 self.memory.append({"role": "assistant", "content": immediate_answer})
+                trace.final_answer = immediate_answer
+                trace.fallback_used = True
+                trace.immediate_answer_used = True
+                self._finish_trace(trace)
 
                 return immediate_answer
 
-            final_answer = self._final_answer(user_input, tool_results)
+            final_answer, fallback_used, final_message = self._final_answer(
+                user_input,
+                tool_results,
+            )
             self.memory.append({"role": "assistant", "content": final_answer})
+            trace.final_answer = final_answer
+            trace.fallback_used = fallback_used
+            trace.final_message = final_message
+            self._finish_trace(trace)
 
             return final_answer
 
-        return "J’ai atteint la limite de boucle sans réponse finale fiable."
+        answer = "J’ai atteint la limite de boucle sans réponse finale fiable."
+        trace.final_answer = answer
+        self._finish_trace(trace)
+
+        return answer
 
     def _execute_tool_calls(self, tool_calls: list[Any]) -> list[dict[str, Any]]:
         """Validate and execute normalized tool calls through the registry."""
@@ -187,7 +229,7 @@ class ToolAgent:
         self,
         user_input: str,
         tool_results: list[dict[str, Any]],
-    ) -> str:
+    ) -> tuple[str, bool, dict[str, Any] | None]:
         """Ask the model to summarize tool results, then fall back if needed."""
         final_response = self._chat(
             messages=[
@@ -198,28 +240,29 @@ class ToolAgent:
             failure_context="LLM request failed after tool execution",
         )
         if isinstance(final_response, str):
-            return final_response
+            return final_response, False, None
 
         final_message = final_response.choices[0].message
         self._display_info("Final message", final_message, color=CYAN)
+        final_message_data = to_trace_data(final_message)
 
         if final_message.content and not self.adapter.should_use_fallback(
             final_message.content,
             tool_results,
         ):
-            return final_message.content
+            return final_message.content, False, final_message_data
 
         fallback_answer = self.registry.fallback_answer(
             self.adapter.fallback_input(user_input, self.memory),
             tool_results,
         )
         if fallback_answer:
-            return fallback_answer
+            return fallback_answer, True, final_message_data
 
         if final_message.content:
-            return final_message.content
+            return final_message.content, False, final_message_data
 
-        return self._raw_tool_result_answer(tool_results)
+        return self._raw_tool_result_answer(tool_results), True, final_message_data
 
     def _chat(
         self,
@@ -240,6 +283,12 @@ class ToolAgent:
 
         return answer
 
+    def _finish_trace(self, trace: AgentTurnTrace) -> None:
+        """Finalize and retain a trace for the completed user turn."""
+        trace.finish(self.memory)
+        self.last_trace = trace
+        self.trace_history.append(trace)
+
     @staticmethod
     def _raw_tool_result_answer(tool_results: list[dict[str, Any]]) -> str:
         """Format raw tool results when neither model nor registry can summarize."""
@@ -256,9 +305,11 @@ class ToolAgent:
             f"{formatted_results}"
         )
 
-    @staticmethod
-    def _display_info(title: str, value: Any, *, color: str = CYAN) -> None:
+    def _display_info(self, title: str, value: Any, *, color: str = CYAN) -> None:
         """Print a labeled, colorized diagnostic panel to the console."""
+        if not self.verbose:
+            return
+
         print(f"{DIM}╭─{RESET} {color}{BOLD}{title}{RESET}")
         print(f"{DIM}╰─{RESET} {ToolAgent._format_console_value(value)}")
 

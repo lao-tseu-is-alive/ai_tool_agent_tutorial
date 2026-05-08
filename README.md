@@ -52,6 +52,19 @@ py_tool_agent/
   model_adapters.py   # Normalizes model-specific tool behavior
   tool_registry.py    # Tool metadata, schemas, validation, execution, fallbacks
   tools.py            # Concrete tool functions and default registry
+  tracing.py          # Per-turn trace capture for evals and debugging
+  eval/
+    assertions.py     # Deterministic behavioral assertions
+    fixtures.py       # Scripted LLM and deterministic tool fixtures
+    runner.py         # Scenario runner and report writer
+tests/
+  README.md           # How to run deterministic tests and evals
+  eval_scenarios.example.jsonc
+  eval_scenarios.json # Behavioral regression scenarios
+  eval_scenarios.schema.json
+  test_eval_scenarios.py
+scripts/
+  test.sh             # One-command compile, test, and eval report runner
 ```
 
 ## Quickstart
@@ -178,6 +191,69 @@ This project was shaped by testing multiple Ollama models:
 The adapter layer exists because those differences should not leak into the
 agent loop or individual tools.
 
+## Deterministic Behavioral Evals
+
+The project includes a first evaluation harness for checking agent behavior
+without relying on an external judge model.
+
+The recommended test path is:
+
+```bash
+./scripts/test.sh
+```
+
+It compile-checks the package, runs the deterministic unittest suite, and writes
+an eval report to `eval_runs/latest`.
+
+The output uses `✅` for passed steps and `❌` for failures.
+
+Scenarios live in `tests/eval_scenarios.json`. The supporting files are:
+
+- `tests/eval_scenarios.example.jsonc`: commented example for learning the format
+- `tests/eval_scenarios.schema.json`: JSON schema for editor validation and documentation
+- `tests/README.md`: step-by-step notes for adding a scenario
+
+Each turn can define:
+
+- scripted model responses
+- fixed tool fixtures, such as current time and directory listing output
+- expected tools, forbidden tools, and final-answer assertions
+- memory validation for assistant tool calls and matching `role: tool` messages
+- groundedness checks for file names, file sizes, date answers, and access-denial hallucinations
+
+Run only the regression test:
+
+```bash
+uv run python -m unittest tests.test_eval_scenarios
+```
+
+Important: `unittest` expects a dotted Python module name. Do not use a slash
+path here:
+
+```bash
+uv run python -m unittest tests/test_eval_scenarios
+```
+
+Generate a readable JSON and Markdown report:
+
+```bash
+uv run python -m py_tool_agent.eval.runner \
+  --scenarios tests/eval_scenarios.json \
+  --out eval_runs/latest
+```
+
+Current phase-1 scenario coverage:
+
+- greeting should not expose tools
+- date request should call `get_current_time`
+- wrong model date summaries are overridden by deterministic fallback
+- yesterday chaining remains grounded in the time tool result
+- Python files from yesterday are filtered from directory metadata
+- file-size follow-up stays grounded in the same directory listing, preventing regressions like `1234` instead of `1121`
+
+The next natural step is a cross-model runner that executes the same scenario
+prompts against real Ollama models and writes comparative reliability reports.
+
 ## Design Principles
 
 - Keep tool definitions centralized.
@@ -192,7 +268,7 @@ agent loop or individual tools.
 Compile-check the package:
 
 ```bash
-python -m py_compile py_tool_agent/*.py
+python -m py_compile py_tool_agent/*.py py_tool_agent/eval/*.py
 ```
 
 Check that every class/function has a docstring:
@@ -226,4 +302,3 @@ The project still follows the original learning loop:
 4. Act through validated registered tools.
 5. Ground the final answer in tool results.
 6. Loop until a reliable answer is produced.
-

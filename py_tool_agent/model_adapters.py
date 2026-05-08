@@ -206,7 +206,7 @@ class ModelAdapter:
         """Return the text used for intent matching, with context for follow-ups."""
         text = user_input.lower().strip()
 
-        if self._looks_like_contextual_file_followup(text):
+        if self._looks_like_contextual_file_followup(text) or self._looks_like_file_request(text):
             return f"{self._recent_context_text(memory)} {text}"
 
         if text not in CONFIRMATIONS:
@@ -235,6 +235,14 @@ class ModelAdapter:
                 "whats the size",
                 "size of",
             )
+        )
+
+    @staticmethod
+    def _looks_like_file_request(text: str) -> bool:
+        """Return whether a request is about files or directory contents."""
+        return any(
+            word in text
+            for word in ("file", "files", ".py", "folder", "directory", "dir")
         )
 
     @staticmethod
