@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import os
 from pathlib import Path
 
@@ -24,12 +25,14 @@ def run_live_scenarios(
     *,
     llm: LLMClient,
     verbose: bool = False,
+    workdir: Path | None = None,
 ) -> list[ScenarioEvalResult]:
     """Run scenario prompts against a real LLM client."""
-    return [
-        run_live_scenario(scenario, llm=llm, verbose=verbose)
-        for scenario in load_scenarios(path)
-    ]
+    with _working_directory(workdir):
+        return [
+            run_live_scenario(scenario, llm=llm, verbose=verbose)
+            for scenario in load_scenarios(path)
+        ]
 
 
 def run_live_scenario(
@@ -94,14 +97,28 @@ def main() -> None:
         action="store_true",
         help="Show agent diagnostic panels while running live evals.",
     )
+    parser.add_argument(
+        "--workdir",
+        type=Path,
+        default=None,
+        help="Directory used as the process cwd while live tools run.",
+    )
     args = parser.parse_args()
 
+    scenarios_path = args.scenarios.resolve()
+    out_dir = args.out.resolve() if args.out else None
+    workdir = args.workdir.resolve() if args.workdir else None
     llm = _llm_for_model(args.model)
-    results = run_live_scenarios(args.scenarios, llm=llm, verbose=args.verbose)
-    metadata = build_metadata(args.scenarios, llm.model, runner="live-llm")
+    results = run_live_scenarios(
+        scenarios_path,
+        llm=llm,
+        verbose=args.verbose,
+        workdir=workdir,
+    )
+    metadata = build_metadata(scenarios_path, llm.model, runner="live-llm")
 
-    if args.out:
-        write_report(results, args.out, metadata)
+    if out_dir:
+        write_report(results, out_dir, metadata)
 
     print(_markdown_summary(results, metadata))
     if not all(result.passed for result in results):
@@ -120,6 +137,21 @@ def _llm_for_model(model: str) -> LLMClient:
         api_base=api_base,
         timeout=float(os.getenv("AGENT_REQUEST_TIMEOUT", "20")),
     )
+
+
+@contextlib.contextmanager
+def _working_directory(path: Path | None):
+    """Temporarily switch cwd while tools execute."""
+    if path is None:
+        yield
+        return
+
+    previous = Path.cwd()
+    os.chdir(path)
+    try:
+        yield
+    finally:
+        os.chdir(previous)
 
 
 if __name__ == "__main__":

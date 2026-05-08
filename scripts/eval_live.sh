@@ -18,6 +18,7 @@ SAFE_MODEL="${MODEL//\//_}"
 SAFE_MODEL="${SAFE_MODEL//:/_}"
 REPORT_DIR="${2:-"$ROOT_DIR/eval_runs/live/$RUN_ID-$SAFE_MODEL"}"
 LATEST_DIR="$ROOT_DIR/eval_runs/live/latest"
+WORKSPACE_DIR="$ROOT_DIR/eval_runs/live/workspace"
 
 trap 'echo "❌ Live eval failed. Check the command output above."' ERR
 
@@ -25,11 +26,16 @@ echo "🔎 Compile-checking Python modules"
 uv run python -m py_compile py_tool_agent/*.py py_tool_agent/eval/*.py
 echo "✅ Compile check passed"
 
+echo "📁 Preparing controlled live eval workspace at $WORKSPACE_DIR"
+uv run python -m py_tool_agent.eval.workspace "$WORKSPACE_DIR" >/dev/null
+echo "✅ Live eval workspace prepared"
+
 echo "🧪 Running live eval with model: $MODEL"
 uv run python -m py_tool_agent.eval.live_runner \
   --scenarios tests/eval_scenarios.json \
   --model "$MODEL" \
-  --out "$REPORT_DIR"
+  --out "$REPORT_DIR" \
+  --workdir "$WORKSPACE_DIR"
 
 echo "✅ Live eval report written to $REPORT_DIR"
 

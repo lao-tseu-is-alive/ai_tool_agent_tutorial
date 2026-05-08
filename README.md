@@ -289,6 +289,9 @@ Run a specific model:
 
 Live evals use the same `tests/eval_scenarios.json` prompts and assertions, but
 they ignore `llm_responses` and call the real model through LiteLLM/Ollama.
+Before running, `scripts/eval_live.sh` recreates a controlled workspace at
+`eval_runs/live/workspace`; tools that inspect the current directory see that
+workspace instead of the mutable project root.
 
 Reports are written to timestamped folders:
 

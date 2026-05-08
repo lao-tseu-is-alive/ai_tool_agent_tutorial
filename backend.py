@@ -2,6 +2,7 @@ import ollama
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any
 
+
 class LLMBackend(ABC):
     @property    
     @abstractmethod

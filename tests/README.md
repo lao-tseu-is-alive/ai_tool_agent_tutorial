@@ -97,6 +97,10 @@ The same scenario file is used in two ways:
 - `./scripts/eval_live.sh` ignores `llm_responses` and calls the selected real
   model. This tests actual model behavior.
 
+Live evals run tools from a generated workspace under `eval_runs/live/workspace`.
+That workspace is recreated before every live run so directory-listing tests do
+not depend on mutable project files such as the real `backend.py`.
+
 For live evals, the important fields are:
 
 - `input`
