@@ -1,5 +1,18 @@
 {
   "$schema": "./eval_scenarios.schema.json",
+  "workspace": {
+    "files": [
+      {
+        "path": "backend.py",
+        "content": "\"\"\"Controlled Python file used by live evals.\"\"\"\n\n\ndef handler() -> str:\n    \"\"\"Return a stable fixture value.\"\"\"\n    return \"live-eval-backend\"\n\n",
+        "size_bytes": 1121,
+        "modified_at": {
+          "date": "yesterday",
+          "time": "16:15:00"
+        }
+      }
+    ]
+  },
   "scenarios": [
     {
     "id": "date_and_file_chaining_01",

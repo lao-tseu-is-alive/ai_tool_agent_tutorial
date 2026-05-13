@@ -101,6 +101,29 @@ Live evals run tools from a generated workspace under `eval_runs/live/workspace`
 That workspace is recreated before every live run so directory-listing tests do
 not depend on mutable project files such as the real `backend.py`.
 
+The generated workspace is configured by the top-level `workspace` object in
+`eval_scenarios.json`. Relative modification dates such as `yesterday` are
+resolved from the local time when the workspace is prepared unless
+`workspace.reference_time` is set explicitly for reproducible debugging:
+
+```json
+{
+  "workspace": {
+    "files": [
+      {
+        "path": "backend.py",
+        "content": "print('example')\n",
+        "size_bytes": 128,
+        "modified_at": {
+          "date": "yesterday",
+          "time": "16:15:00"
+        }
+      }
+    ]
+  }
+}
+```
+
 For live evals, the important fields are:
 
 - `input`

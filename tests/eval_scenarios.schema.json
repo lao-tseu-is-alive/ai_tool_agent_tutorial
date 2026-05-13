@@ -13,6 +13,9 @@
       "type": "string",
       "description": "Relative or absolute path to this JSON schema for editor integration."
     },
+    "workspace": {
+      "$ref": "#/$defs/workspace"
+    },
     "scenarios": {
       "type": "array",
       "description": "Deterministic scenarios executed by the eval runner.",
@@ -22,6 +25,81 @@
     }
   },
   "$defs": {
+    "workspace": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Files and metadata used to recreate the live eval working directory.",
+      "properties": {
+        "reference_time": {
+          "type": "string",
+          "description": "Optional ISO datetime used by relative workspace dates. Defaults to the local time when the workspace is prepared."
+        },
+        "files": {
+          "type": "array",
+          "description": "Workspace files to create before live evals run.",
+          "items": {
+            "$ref": "#/$defs/workspace_file"
+          }
+        }
+      }
+    },
+    "workspace_file": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Workspace-relative file path. Absolute paths and parent-directory traversal are rejected."
+        },
+        "content": {
+          "type": "string",
+          "description": "UTF-8 text content written to the file. Defaults to an empty string."
+        },
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Optional exact UTF-8 byte size. Content is padded with # characters when needed."
+        },
+        "modified_at": {
+          "oneOf": [
+            {
+              "type": "string",
+              "description": "Absolute ISO datetime."
+            },
+            {
+              "$ref": "#/$defs/relative_datetime"
+            }
+          ]
+        }
+      }
+    },
+    "relative_datetime": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Datetime resolved relative to the workspace reference_time.",
+      "properties": {
+        "date": {
+          "type": "string",
+          "description": "Relative keyword or ISO date.",
+          "examples": [
+            "yesterday",
+            "today",
+            "tomorrow",
+            "2026-05-07"
+          ]
+        },
+        "time": {
+          "type": "string",
+          "description": "ISO time used with the resolved date.",
+          "examples": [
+            "16:15:00"
+          ]
+        }
+      }
+    },
     "scenario": {
       "type": "object",
       "additionalProperties": false,

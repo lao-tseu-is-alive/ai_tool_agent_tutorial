@@ -2,6 +2,27 @@
   // Standard JSON Schema hint used by editors such as PyCharm and VS Code.
   "$schema": "./eval_scenarios.schema.json",
 
+  // Files created for live evals before the real model runs.
+  "workspace": {
+    "files": [
+      {
+        // Workspace-relative path.
+        "path": "backend.py",
+
+        // Text content can be padded to size_bytes for metadata assertions.
+        "content": "print('example')\n",
+        "size_bytes": 128,
+
+        // Relative dates are resolved from the local preparation time
+        // unless workspace.reference_time is set explicitly.
+        "modified_at": {
+          "date": "yesterday",
+          "time": "16:15:00"
+        }
+      }
+    ]
+  },
+
   // Scenarios run sequentially by the eval runner.
   "scenarios": [
     {
