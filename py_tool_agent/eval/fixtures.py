@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import datetime as dt
 from types import SimpleNamespace
 from typing import Any
 
+from py_tool_agent.eval.workspace import directory_listing_from_workspace
 from py_tool_agent.tool_registry import ToolRegistry, ToolSpec
 from py_tool_agent.tools import (
     AddNumbersArguments,
@@ -71,7 +73,10 @@ class ScriptedLLM:
         )
 
 
-def fixture_registry(fixtures: dict[str, Any]) -> ToolRegistry:
+def fixture_registry(
+    fixtures: dict[str, Any],
+    workspace: dict[str, Any] | None = None,
+) -> ToolRegistry:
     """Build a ToolRegistry whose tools return deterministic fixture values."""
 
     def get_current_time() -> str:
@@ -79,8 +84,17 @@ def fixture_registry(fixtures: dict[str, Any]) -> ToolRegistry:
         return fixtures["current_time"]
 
     def list_current_directory() -> str:
-        """Return the scenario's fixed directory listing."""
-        return fixtures["directory_listing"]
+        """Return deterministic directory listing text for the scenario workspace."""
+        if "directory_listing" in fixtures:
+            return fixtures["directory_listing"]
+
+        if workspace is None:
+            raise KeyError("directory_listing")
+
+        return directory_listing_from_workspace(
+            workspace,
+            dt.datetime.fromisoformat(fixtures["current_time"]),
+        )
 
     return ToolRegistry(
         [

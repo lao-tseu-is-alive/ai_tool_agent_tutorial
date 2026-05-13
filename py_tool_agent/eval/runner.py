@@ -61,7 +61,14 @@ def load_scenarios(path: Path) -> list[dict[str, Any]]:
         return data
 
     if isinstance(data, dict) and isinstance(data.get("scenarios"), list):
-        return data["scenarios"]
+        workspace = data.get("workspace")
+        if workspace is None:
+            return data["scenarios"]
+
+        return [
+            {**scenario, "_workspace": workspace}
+            for scenario in data["scenarios"]
+        ]
 
     raise ValueError(
         "scenario file must be a list of scenarios or an object with a "
@@ -86,7 +93,10 @@ def run_scenario(
     )
     agent = ToolAgent(
         llm=llm,
-        registry=fixture_registry(scenario.get("fixtures", {})),
+        registry=fixture_registry(
+            scenario.get("fixtures", {}),
+            scenario.get("_workspace") or scenario.get("workspace"),
+        ),
         verbose=False,
     )
     turns: list[TurnEvalResult] = []

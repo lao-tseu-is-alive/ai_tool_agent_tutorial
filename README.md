@@ -103,10 +103,10 @@ Example:
 The current date is 2026-05-08. Tomorrow's date is 2026-05-09.
 
 >>> any python files from yesterday in current folder
-Matching files in the current directory: backend.py.
+Matching files in the current directory: example.py.
 
 >>> what's the size of this file
-The size of backend.py is 1121 bytes.
+The size of example.py is 1121 bytes.
 ```
 
 ## Configuration
@@ -223,7 +223,8 @@ Scenarios live in `tests/eval_scenarios.json`. The supporting files are:
 Each turn can define:
 
 - scripted model responses
-- fixed tool fixtures, such as current time and directory listing output
+- fixed tool fixtures, such as current time
+- workspace-driven directory fixtures for file listing behavior
 - expected tools, forbidden tools, and final-answer assertions
 - memory validation for assistant tool calls and matching `role: tool` messages
 - groundedness checks for file names, file sizes, date answers, and access-denial hallucinations

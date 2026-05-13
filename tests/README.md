@@ -99,7 +99,7 @@ The same scenario file is used in two ways:
 
 Live evals run tools from a generated workspace under `eval_runs/live/workspace`.
 That workspace is recreated before every live run so directory-listing tests do
-not depend on mutable project files such as the real `backend.py`.
+not depend on mutable project files such as the real `example.py`.
 
 The generated workspace is configured by the top-level `workspace` object in
 `eval_scenarios.json`. Relative modification dates such as `yesterday` are
@@ -111,7 +111,7 @@ resolved from the local time when the workspace is prepared unless
   "workspace": {
     "files": [
       {
-        "path": "backend.py",
+        "path": "example.py",
         "content": "print('example')\n",
         "size_bytes": 128,
         "modified_at": {
@@ -147,8 +147,7 @@ Add a new object to the top-level `scenarios` array in `eval_scenarios.json`:
       "id": "simple_date_01",
       "description": "Checks today and tomorrow date handling.",
       "fixtures": {
-        "current_time": "2026-05-08T14:01:32",
-        "directory_listing": "total 0"
+        "current_time": "2026-05-08T14:01:32"
       },
       "turns": [
         {
@@ -195,7 +194,8 @@ Add a new object to the top-level `scenarios` array in `eval_scenarios.json`:
 
 The important sections are:
 
-- `fixtures`: fixed tool outputs for deterministic tests.
+- `workspace`: files used by live evals and deterministic directory fixtures.
+- `fixtures`: fixed non-workspace tool outputs for deterministic tests, such as current time.
 - `scenarios`: scenario objects run by the eval runner.
 - `turns`: user messages run sequentially against the same agent.
 - `llm_responses`: fake model messages consumed by the agent.

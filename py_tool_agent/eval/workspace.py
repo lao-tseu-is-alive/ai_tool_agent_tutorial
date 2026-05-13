@@ -29,6 +29,37 @@ def prepare_workspace(path: Path, scenarios_path: Path | None = None) -> Path:
     return path
 
 
+def directory_listing_from_workspace(
+    workspace: dict[str, Any],
+    reference_time: dt.datetime,
+) -> str:
+    """Build deterministic ls-style output from workspace config."""
+    files = workspace.get("files", [])
+    if not isinstance(files, list):
+        raise ValueError("workspace.files must be a list")
+
+    rows = []
+    for file_config in files:
+        if not isinstance(file_config, dict):
+            raise ValueError("workspace.files entries must be objects")
+
+        path = _safe_relative_path(file_config["path"])
+        if len(path.parts) != 1:
+            continue
+
+        content = file_config.get("content", "")
+        if not isinstance(content, str):
+            raise ValueError(f"{path}: content must be a string")
+
+        size_bytes = file_config.get("size_bytes", len(content.encode("utf-8")))
+        modified_at = _workspace_file_modified_at(file_config, reference_time)
+        rows.append(_format_listing_row(path.name, size_bytes, modified_at))
+
+    rows.sort(key=str.lower)
+
+    return "\n".join(["total 0", *rows])
+
+
 def main() -> None:
     """Prepare the live-eval workspace from the command line."""
     parser = argparse.ArgumentParser(description="Prepare a controlled eval workspace.")
@@ -61,6 +92,18 @@ def _load_workspace_config(scenarios_path: Path | None) -> dict[str, Any]:
     return workspace
 
 
+def _workspace_file_modified_at(
+    file_config: dict[str, Any],
+    reference_time: dt.datetime,
+) -> dt.datetime:
+    """Return configured mtime or the reference time for a workspace file."""
+    modified_at = file_config.get("modified_at")
+    if modified_at is None:
+        return reference_time.replace(microsecond=0)
+
+    return _resolve_modified_at(modified_at, reference_time)
+
+
 def _create_file(
     workspace_path: Path,
     file_config: dict[str, Any],
@@ -88,6 +131,18 @@ def _create_file(
     if modified_at is not None:
         timestamp = _resolve_modified_at(modified_at, reference_time).timestamp()
         os.utime(file_path, (timestamp, timestamp))
+
+
+def _format_listing_row(name: str, size_bytes: int, modified_at: dt.datetime) -> str:
+    """Format one workspace config file as an ls-style row."""
+    return (
+        f"-rw-rw-r--  1 eval     eval     "
+        f"{size_bytes:>8} "
+        f"{modified_at.strftime('%b')} "
+        f"{modified_at.day:>2} "
+        f"{modified_at.strftime('%H:%M')} "
+        f"{name}"
+    )
 
 
 def _content_with_size(path: Path, content: str, size_bytes: int) -> str:

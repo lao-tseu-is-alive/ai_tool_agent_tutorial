@@ -7,7 +7,7 @@
     "files": [
       {
         // Workspace-relative path.
-        "path": "backend.py",
+        "path": "example.py",
 
         // Text content can be padded to size_bytes for metadata assertions.
         "content": "print('example')\n",
@@ -34,11 +34,9 @@
 
       // Tool outputs are fixed so the test is deterministic.
       "fixtures": {
-        // Returned by get_current_time.
-        "current_time": "2026-05-08T14:01:32",
-
-        // Returned by list_current_directory if this scenario needs file tests.
-        "directory_listing": "total 0"
+        // Returned by get_current_time. Deterministic directory listings are
+        // derived from the top-level workspace config and this timestamp.
+        "current_time": "2026-05-08T14:01:32"
       },
 
       // Turns run sequentially against the same agent instance.

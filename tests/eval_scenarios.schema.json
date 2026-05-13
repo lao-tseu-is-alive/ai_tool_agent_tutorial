@@ -144,7 +144,7 @@
         },
         "directory_listing": {
           "type": "string",
-          "description": "ls -al style text returned by list_current_directory."
+          "description": "Optional legacy override for list_current_directory. Prefer top-level workspace files so deterministic and live evals share one source of truth."
         }
       }
     },

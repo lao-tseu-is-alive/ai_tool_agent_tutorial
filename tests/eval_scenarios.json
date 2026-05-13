@@ -3,7 +3,7 @@
   "workspace": {
     "files": [
       {
-        "path": "backend.py",
+        "path": "example.py",
         "content": "\"\"\"Controlled Python file used by live evals.\"\"\"\n\n\ndef handler() -> str:\n    \"\"\"Return a stable fixture value.\"\"\"\n    return \"live-eval-backend\"\n\n",
         "size_bytes": 1121,
         "modified_at": {
@@ -18,8 +18,7 @@
     "id": "date_and_file_chaining_01",
     "description": "Checks date chaining, file filtering, size follow-up, tool protocol, and hallucination fallbacks.",
     "fixtures": {
-      "current_time": "2026-05-08T14:01:32",
-      "directory_listing": "total 336\ndrwxrwxr-x  8 cgil     cgil         4096 May  8 14:00 .\ndrwxrwxr-x 50 cgil     users        4096 May  7 17:08 ..\ndrwxr-xr-x  2 cgil     cgil         4096 May  8 10:57 .agents\ndrwxr-xr-x  2 cgil     cgil         4096 May  8 10:57 .codex\n-rw-rw-r--  1 cgil     cgil          251 May  8 14:00 .env\ndrwxrwxr-x  8 cgil     cgil         4096 May  8 13:34 .git\n-rw-rw-r--  1 cgil     cgil          149 May  7 17:51 .gitignore\ndrwxrwxr-x  3 cgil     cgil         4096 May  8 13:57 .idea\n-rw-rw-r--  1 cgil     cgil            5 May  7 15:41 .python-version\ndrwxrwxr-x  4 cgil     cgil         4096 May  7 15:44 .venv\n-rw-rw-r--  1 cgil     cgil         1121 May  7 16:15 backend.py\n-rw-rw-r--  1 cgil     cgil         1059 May  7 17:05 LICENSE\ndrwxrwxr-x  3 cgil     cgil         4096 May  8 13:30 py_tool_agent\n-rw-rw-r--  1 cgil     cgil          287 May  7 16:16 pyproject.toml\n-rw-rw-r--  1 cgil     cgil          420 May  7 17:56 README.md\n-rw-rw-r--  1 cgil     cgil       281384 May  7 16:16 uv.lock"
+      "current_time": "2026-05-08T14:01:32"
     },
     "turns": [
       {
@@ -136,7 +135,7 @@
         ],
         "assertions": {
           "answer_contains": [
-            "backend.py"
+            "example.py"
           ],
           "grounded_in_tool_results": true,
           "memory_valid": true,
@@ -155,7 +154,7 @@
                 "arguments": {}
               }
             ],
-            "reasoning_content": "Use directory metadata to resolve size of backend.py."
+            "reasoning_content": "Use directory metadata to resolve size of example.py."
           }
         ],
         "expected_tools": [
@@ -163,7 +162,7 @@
         ],
         "assertions": {
           "answer_contains": [
-            "backend.py",
+            "example.py",
             "1121 bytes"
           ],
           "answer_not_contains": [
