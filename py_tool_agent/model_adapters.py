@@ -227,7 +227,7 @@ class ModelAdapter:
 
     @staticmethod
     def _looks_like_contextual_file_followup(text: str) -> bool:
-        """Return whether a short file question depends on prior context."""
+        """Return whether a short file question depends on the prior context."""
         return any(
             phrase in text
             for phrase in (
@@ -251,10 +251,12 @@ class ModelAdapter:
 
     @staticmethod
     def _recent_context_mentions_file(memory: list[dict[str, Any]]) -> bool:
-        """Return whether recent conversation mentions an identifiable file."""
-        return any(
-            word in ModelAdapter._recent_context_text(memory)
-            for word in ("matching files", ".py", "backend.py", "file")
+        """Return whether a recent conversation mentions an identifiable file."""
+        text = ModelAdapter._recent_context_text(memory)
+
+        return (
+            "matching files" in text
+            or re.search(r"\b[\w.-]+\.[a-z0-9]{1,10}\b", text) is not None
         )
 
     @staticmethod
